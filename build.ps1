@@ -24,8 +24,8 @@ Copy-Item README.md (Join-Path $Folder 'README.md')
 $GuideName = -join ([char[]](0x4f7f, 0x7528, 0x8bf4, 0x660e))
 Copy-Item -LiteralPath (Join-Path $PSScriptRoot "$GuideName.txt") -Destination $Folder
 New-Item -ItemType Directory -Force release | Out-Null
-$Archive = Join-Path $PSScriptRoot 'release\English-Quick-Check-v0.2.1-windows-x64.zip'
+$Archive = Join-Path $PSScriptRoot 'release\English-Quick-Check-v0.2.2-windows-x64.zip'
 Compress-Archive -Path $Folder -DestinationPath $Archive -Force
 $Hash = (Get-FileHash $Archive -Algorithm SHA256).Hash.ToLower()
-"$Hash  English-Quick-Check-v0.2.1-windows-x64.zip" | Set-Content -Encoding ascii 'release\SHA256SUMS.txt'
+"$Hash  English-Quick-Check-v0.2.2-windows-x64.zip" | Set-Content -Encoding ascii 'release\SHA256SUMS.txt'
 Write-Host "Portable build ready: $Archive"

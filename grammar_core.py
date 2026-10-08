@@ -24,7 +24,7 @@ def contains_chinese(text: str) -> bool:
     return bool(re.search(r'[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\U00020000-\U000323af]', text))
 
 PROVIDERS = {
-    'DeepSeek': ('https://api.deepseek.com/v1', 'deepseek-chat'),
+    'DeepSeek': ('https://api.deepseek.com/v1', 'deepseek-flash'),
     'OpenAI': ('https://api.openai.com/v1', 'gpt-4o-mini'),
     '自定义': ('', ''),
 }
@@ -126,6 +126,35 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         # Never forward a Bearer key or text to a redirect destination.
         return None
+
+
+def fetch_models(base: str, api_key: str) -> list[str]:
+    """Fetch metadata only, without redirects, retries or chat requests."""
+    url = endpoint(base).removesuffix('/chat/completions') + '/models'
+    if not api_key.strip():
+        raise ValueError('请先填写 API Key，再获取模型。')
+    request = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + api_key.strip(),
+                                                 'Accept': 'application/json'}, method='GET')
+    try:
+        with urllib.request.build_opener(_NoRedirect()).open(request, timeout=15) as response:
+            raw = response.read(1024 * 1024 + 1)
+        if len(raw) > 1024 * 1024:
+            raise ValueError('模型列表过大，已停止读取。')
+        data = json.loads(raw)
+        if not isinstance(data, dict) or not isinstance(data.get('data'), list):
+            raise ValueError('接口未返回兼容的模型列表；仍可手动填写模型。')
+        models = sorted({item['id'] for item in data['data'] if isinstance(item, dict)
+                         and isinstance(item.get('id'), str) and 0 < len(item['id']) <= 200
+                         and not any(ord(c) < 32 for c in item['id'])})
+        if not models:
+            raise ValueError('接口返回的模型列表为空；仍可手动填写模型。')
+        return models
+    except urllib.error.HTTPError as exc:
+        raise ValueError(f'获取模型失败（HTTP {exc.code}）：请检查地址、Key 或模型列表接口权限。') from None
+    except (urllib.error.URLError, TimeoutError):
+        raise ValueError('获取模型网络失败或超时；请稍后重试，仍可手动填写模型。') from None
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        raise ValueError('模型列表不是有效 JSON；仍可手动填写模型。') from None
 
 
 def request_limit(value=1000) -> int:

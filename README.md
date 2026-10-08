@@ -1,12 +1,12 @@
 # English Quick Check · 轻量英文写作助手
 
-Windows 轻量桌面助手（v0.2.1）：本地基础规则 + 按需 DeepSeek / OpenAI 兼容 API。无 Java、无 Electron。源码运行仅依赖 Python 标准库；Windows x64 便携发行版自带 Python / Tk，无需另装 Python。自带原生 Windows 系统托盘与统一设置窗口。
+Windows 轻量桌面助手（v0.2.2）：本地基础规则 + 按需 DeepSeek / OpenAI 兼容 API。无 Java、无 Electron。源码运行仅依赖 Python 标准库；Windows x64 便携发行版自带 Python / Tk，无需另装 Python。自带原生 Windows 系统托盘与统一设置窗口。
 
 ## 启动
 
 ### Windows 便携版
 
-下载 `English-Quick-Check-v0.2.1-windows-x64.zip`，**解压整个文件夹**后双击 `English Quick Check.exe`。没有命令行黑框，无需安装 Python。必须保留同级 `_internal` 文件夹；不能只复制 exe。设置和月度用量仍保存在当前用户的 `%LOCALAPPDATA%\EnglishQuickCheck`，因此“便携”指无需安装，不代表数据随文件夹移动。
+下载 `English-Quick-Check-v0.2.2-windows-x64.zip`，**解压整个文件夹**后双击 `English Quick Check.exe`。没有命令行黑框，无需安装 Python。必须保留同级 `_internal` 文件夹；不能只复制 exe。设置和月度用量仍保存在当前用户的 `%LOCALAPPDATA%\EnglishQuickCheck`，因此“便携”指无需安装，不代表数据随文件夹移动。
 
 当前为未签名的早期版本，SmartScreen 可能提示未知发布者；请从可信发布页下载并核对 SHA256，不要关闭安全软件。仅在本机验证，其他 Windows 版本、DPI、杀毒环境仍需实际验证。
 
@@ -81,15 +81,19 @@ python app.py --demo
 
 ## API 配置
 
+打开主窗口右上角 **设置 → API 与用量**，填写地址与 API Key，点击 **获取模型列表**，在模型下拉框中选择后点击 **保存全部设置**。列表由配置的服务商返回；不支持列表接口时仍可手动输入模型名称。
+
+获取列表仅请求 `/models` 元数据，不发送聊天测试请求，不会逐个验证模型。列表可能包含非聊天模型，且不保证账号调用权限。网络失败时保留现有选择；配置改变后旧响应会被忽略。模型列表只在当前进程缓存，不写入磁盘，打开设置不会自动联网。
+
 | 服务商 | Base URL | 默认模型 |
 |---|---|---|
-| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
+| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-flash` |
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` |
 | 自定义 | 自填 HTTPS 地址 | 自填非推理聊天模型 |
 
 兼容 `POST /chat/completions` 的接口。也接受完整的 `/chat/completions` URL；禁止 HTTP 与携带账号/查询参数的地址；禁止 HTTP 重定向，避免向新地址转发 Key。切换服务商自动清空 Key，避免误发给另一平台。模型可用性、价格和兼容参数以服务商为准；ChatGPT 订阅不包含 OpenAI API 额度。
 
-对 DeepSeek 官方域名 `api.deepseek.com` 的请求显式发送 `thinking: {"type": "disabled"}`，关闭思考模式。OpenAI 与第三方兼容地址不发送这个专用参数。默认模型仍为 `deepseek-chat`；实际支持范围以服务商为准。当前使用非流式响应，要等完整 JSON 返回才显示；长原文对应的输出较长、网络与服务端排队都可能导致延迟，关闭思考不保证固定响应时间。参考：https://api-docs.deepseek.com/guides/thinking_mode/
+对 DeepSeek 官方域名 `api.deepseek.com` 的请求显式发送 `thinking: {"type": "disabled"}`，关闭思考模式。OpenAI 与第三方兼容地址不发送这个专用参数。默认模型仍为 `deepseek-flash`；实际支持范围以服务商为准。当前使用非流式响应，要等完整 JSON 返回才显示；长原文对应的输出较长、网络与服务端排队都可能导致延迟，关闭思考不保证固定响应时间。参考：https://api-docs.deepseek.com/guides/thinking_mode/
 
 不强制依赖 response_format 参数，由提示词要求 JSON，并验证结果；若服务返回不合法 JSON、被截断或请求失败，显示错误，不自动重试。
 
@@ -125,7 +129,7 @@ python app.py --demo
 - 在 API 等待期间修改原文，旧结果会丢弃；已经发出的请求仍可能计费。退出软件不保证撤销服务端计费。
 - 暂未实现开机自启、LanguageTool、每日金额预算；已提供原生托盘、便携 exe 和本地月度用量统计。
 
-## 从源码打包与上传 GitHub
+## 开发者：从源码构建
 
 在 Windows x64 上安装带 Tkinter 的 64 位 Python 3.10+，从项目目录执行：
 
@@ -133,11 +137,13 @@ python app.py --demo
 powershell -ExecutionPolicy Bypass -File .\build.ps1
 ```
 
-脚本创建隔离的 `.venv-build`，安装 `requirements-build.txt` 中的 PyInstaller，运行单元测试及打包后 GUI 离线自检，然后生成 `dist/English Quick Check/` 和 `release/English-Quick-Check-v0.2.1-windows-x64.zip` / `SHA256SUMS.txt`。首次安装构建工具需要联网，但不会调用 AI API。采用文件夹版而非单文件版，避免每次启动解压到临时目录；图标和 0.2.1 版本信息已嵌入。构建依赖只锁定 PyInstaller 主版本，不保证逐字节可复现。
+脚本创建隔离的 `.venv-build`，安装 `requirements-build.txt` 中的 PyInstaller，运行单元测试及打包后 GUI 离线自检，然后生成 `dist/English Quick Check/` 和 `release/English-Quick-Check-v0.2.2-windows-x64.zip` / `SHA256SUMS.txt`。首次安装构建工具需要联网，但不会调用 AI API。采用文件夹版而非单文件版，避免每次启动解压到临时目录；图标和 0.2.2 版本信息已嵌入。构建依赖只锁定 PyInstaller 主版本，不保证逐字节可复现。
 
-上传源码时保留 `.gitignore`，不要提交 `.venv-build`、`build`、`dist`、`release`、个人设置、Key 或用量文件。当前用户数据位于项目目录外，也不由打包脚本收集。推荐将 zip 与 SHA256 文件作为 GitHub **Release 附件**，而不是把构建产物提交到源码仓库。演示截图不含真实聊天或 API Key。
+构建包不收集用户目录中的设置、API Key 和用量文件。当前发行版未签名。
 
-目前没有自动发布、代码签名或许可证授权声明；公开仓库前请自行选择开源许可证（例如 MIT），并检查仓库中不包含个人信息。程序可以公开源码，但未附许可证时，不等于已授权他人自由复用。
+## 许可证
+
+目前未附开源许可证；公开源码不代表授予自由修改或分发的许可。
 
 离线验证打包后的 GUI（演示模式，不读取保存的 Key、不注册快捷键、不联网）：
 
@@ -154,7 +160,7 @@ python -m unittest -v test_core test_hotkey test_ui
 python smoke_test.py
 ```
 
-已通过：28 个自动测试（另含快捷键解析、即时切换及占用保留、保存失败恢复、悬浮按钮指针与悬停回归）（基础规则、重叠规则处理、接口地址、缓存、JSON 错误、输出截断、可调限额、月度保存和跨月统计、缺失用量与损坏文件处理、DPAPI 加密读写）；GUI 改原文后旧复制按钮失效；Windows 快捷键注册及退出注销；原型进程内存测量。
+31 项自动测试覆盖本地规则、模拟 API 响应、用量与设置保存、快捷键切换和冲突处理、托盘生命周期、悬浮按钮反馈及模型列表后台加载。模型列表测试使用模拟数据，未验证真实账号的模型权限。
 
 API 测试使用模拟响应，**没有用真实 Key 调用 DeepSeek/OpenAI，也没有产生 API 费用**。快捷键在微信/QQ/浏览器等软件中的实际选区捕获、各服务商真实返回格式以及长时间资源占用，仍需你实际试用验证。
 

@@ -26,6 +26,35 @@ def reply(content=None, reason='stop'):
         'usage': {'prompt_tokens': 120, 'completion_tokens': 25, 'total_tokens': 145}}
 
 
+class ModelListTests(unittest.TestCase):
+    def test_list_request(self):
+        from grammar_core import fetch_models, _NoRedirect
+        with patch('urllib.request.build_opener') as build:
+            build.return_value.open.return_value = Response({'data': [{'id': 'b'}, {'id': 'a'}, {'id': 'a'}, {'id': 4}]})
+            self.assertEqual(fetch_models('https://example.com/v1/chat/completions', 'test-key'), ['a', 'b'])
+            request = build.return_value.open.call_args.args[0]
+            self.assertEqual(request.full_url, 'https://example.com/v1/models')
+            self.assertEqual(request.get_method(), 'GET')
+            self.assertIsNone(request.data)
+            self.assertIsInstance(build.call_args.args[0], _NoRedirect)
+
+    def test_errors_and_validation(self):
+        from grammar_core import fetch_models
+        import urllib.error
+        for base, key in [('http://example.com', 'key'), ('https://example.com', '')]:
+            with self.assertRaises(ValueError):
+                fetch_models(base, key)
+        with patch('urllib.request.build_opener') as build:
+            for data in ({'data': []}, {'unexpected': []}, []):
+                build.return_value.open.return_value = Response(data)
+                with self.assertRaises(ValueError):
+                    fetch_models('https://example.com/v1', 'key')
+            build.return_value.open.side_effect = urllib.error.HTTPError('https://example.com', 401, 'secret-body', {}, None)
+            with self.assertRaisesRegex(ValueError, 'HTTP 401') as context:
+                fetch_models('https://example.com/v1', 'key')
+            self.assertNotIn('secret-body', str(context.exception))
+
+
 class CoreTests(unittest.TestCase):
     def test_rules_and_overlap(self):
         text = 'I am agree. i  like like apples .'

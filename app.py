@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 from grammar_core import AIClient, MAX_CHARS, PROVIDERS, SettingsStore, UsageStore, request_limit, apply_rules, check_rules, contains_chinese
+from grammar_core import fetch_models
 from windows_hotkey import Hotkey, parse_shortcut
 from windows_tray import TrayIcon
 from desktop_ui import build_ui, SuggestionWindow
@@ -46,6 +47,7 @@ class App:
         self.shortcut_label = tk.StringVar(value=f"快捷键 {self.settings['shortcut']} 捕获当前输入框 · 可在设置中修改")
         self.usage_store = None if demo else UsageStore()
         self.client = AIClient(self.usage_store)
+        self.model_cache = {}
         self.events = queue.Queue()
         self.busy = False
         self.closed = False
@@ -352,7 +354,14 @@ class App:
         ttk.Checkbutton(checking, text='允许覆盖富文本 / 图片剪贴板（原格式会丢失）', variable=overwrite).pack(anchor='w', pady=8)
         ttk.Label(checking, text='默认不上传、不覆盖富文本剪贴板；主动开启后会保存此选择。\n中文转英文只在 AI 请求中生效，本地规则不会翻译。\n快捷键可在“常规”中修改；不自动替换、不发送消息。', wraplength=600).pack(anchor='w', pady=20)
         variables = {key: tk.StringVar(value=self.settings.get(key, '')) for key in ('provider', 'base_url', 'model', 'api_key', 'request_limit')}
-        for key, label in [('provider', '服务商'), ('base_url', 'API Base URL（HTTPS）'), ('model', '非推理模型'), ('api_key', 'API Key'), ('request_limit', '每次运行 AI 请求上限（1–100000 次，非 token）')]:
+        model_choices = {'DeepSeek': ('deepseek-flash', 'deepseek-v4-pro'),
+                         'OpenAI': ('gpt-4o-mini', 'gpt-4.1-mini', 'gpt-4.1'),
+                         '自定义': ()}
+        model_field = None
+        cached = self.model_cache.get((variables['base_url'].get().strip(), variables['api_key'].get().strip()))
+        model_results = queue.Queue()
+        fetching = False
+        for key, label in [('provider', '服务商'), ('base_url', 'API Base URL（HTTPS）'), ('model', '模型（下拉选择，也可输入自定义名称）'), ('api_key', 'API Key'), ('request_limit', '每次运行 AI 请求上限（1–100000 次，非 token）')]:
             ttk.Label(frame, text=label).pack(anchor='w', pady=(8, 3))
             if key == 'provider':
                 field = ttk.Combobox(frame, values=list(PROVIDERS), textvariable=variables[key], state='readonly')
@@ -361,10 +370,67 @@ class App:
                     variables['base_url'].set(base)
                     variables['model'].set(model)
                     variables['api_key'].set('')
+                    choices = model_choices.get(variables['provider'].get(), ())
+                    model_field.configure(values=choices)
+                    if choices:
+                        variables['model'].set(choices[0])
                 field.bind('<<ComboboxSelected>>', provider_changed)
+            elif key == 'model':
+                choices = cached or model_choices.get(variables['provider'].get(), ())
+                current = variables['model'].get()
+                if current and current not in choices:
+                    choices = (current,) + choices
+                model_field = field = ttk.Combobox(frame, values=choices, textvariable=variables[key], state='normal')
             else:
                 field = ttk.Entry(frame, textvariable=variables[key], show='•' if key == 'api_key' else '')
             field.pack(fill='x')
+        def get_models():
+            nonlocal fetching
+            if fetching:
+                return
+            base, key = variables['base_url'].get().strip(), variables['api_key'].get().strip()
+            if not key:
+                model_status.set('请先填写 API Key。')
+                return
+            fetching = True
+            get_button.configure(state='disabled')
+            model_status.set('正在获取模型列表…（不发送聊天请求）')
+            def worker():
+                try:
+                    model_results.put((base, key, fetch_models(base, key), None))
+                except Exception as exc:
+                    # Unexpected errors must not echo credentials or remote response bodies.
+                    model_results.put((base, key, None, str(exc) if isinstance(exc, ValueError) else '获取失败，请检查接口配置。'))
+            threading.Thread(target=worker, daemon=True).start()
+
+        def poll_models():
+            nonlocal fetching
+            if self.closed or not dialog.winfo_exists():
+                return
+            try:
+                base, key, models, error = model_results.get_nowait()
+            except queue.Empty:
+                pass
+            else:
+                fetching = False
+                get_button.configure(state='normal')
+                if (base, key) != (variables['base_url'].get().strip(), variables['api_key'].get().strip()):
+                    model_status.set('配置已改变，已忽略旧列表；请重新获取。')
+                elif error:
+                    model_status.set(error)
+                else:
+                    if len(self.model_cache) >= 5:
+                        self.model_cache.pop(next(iter(self.model_cache)))
+                    self.model_cache[(base, key)] = tuple(models)
+                    model_field.configure(values=models)
+                    model_status.set(f'已获取 {len(models)} 个模型；当前选择未改变。列表不保证聊天适用性或调用权限。')
+            self.root.after(100, poll_models)
+
+        model_status = tk.StringVar(value='列表仅供选择，不代表已验证调用权限；也可手动填写模型名称。')
+        get_button = ttk.Button(frame, text='获取模型列表', command=get_models)
+        get_button.pack(anchor='w', pady=(10, 0))
+        ttk.Label(frame, textvariable=model_status, wraplength=580).pack(anchor='w', pady=4)
+        self.root.after(100, poll_models)
         ttk.Label(frame, text='仅上传主动检查的原文。兼容接口仍可能存在模型差异。\nKey 加密保存，不保存原文；不显示费用估算，避免使用过期报价。', wraplength=580).pack(anchor='w', pady=12)
         def save():
             from grammar_core import endpoint

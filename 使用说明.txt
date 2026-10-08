@@ -1,8 +1,11 @@
-English Quick Check v0.2.1 · Windows x64 便携版
+English Quick Check v0.2.2 · Windows x64 便携版
 
 1. 解压整个文件夹后，双击 English Quick Check.exe。
    不需要安装 Python。不要把 exe 单独移出文件夹；_internal 是必需运行文件。
 2. 默认本地检查不联网。“设置” → “API 与用量”填入自己的 Key 后，可主动使用 AI。
+   点击“获取模型列表”，在模型下拉框选择后保存；也可手动填写模型名称。
+   列表请求不发送聊天测试；列表不保证模型适用于聊天或账号有调用权限。
+   新设置默认推荐 deepseek-flash；已有保存的模型不会被自动覆盖。
 3. 默认在聊天输入框按 Ctrl+Alt+G 可读取整个输入框并显示悬浮建议。
    “设置 → 常规”可修改快捷键，保存后立即生效、下次启动沿用；占用时保留原快捷键。
    支持 Ctrl / Alt / Shift 加字母、数字或 F1–F24，至少包含 Ctrl 或 Alt。

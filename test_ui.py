@@ -25,6 +25,31 @@ class DesktopTests(unittest.TestCase):
             self.app.close()
         self.temp.cleanup()
 
+    def test_models_loaded_without_changing_selection(self):
+        import time
+        from tkinter import ttk
+        self.app.open_settings()
+        dialog = next(w for w in self.root.winfo_children() if isinstance(w, tk.Toplevel) and w.title().startswith('设置'))
+        def walk(widget):
+            for child in widget.winfo_children():
+                yield child
+                yield from walk(child)
+        widgets = list(walk(dialog))
+        combos = [w for w in widgets if isinstance(w, ttk.Combobox)]
+        model = next(w for w in combos if str(w.cget('state')) == 'normal')
+        current = model.get()
+        key = next(w for w in widgets if isinstance(w, ttk.Entry) and str(w.cget('show')) == '•')
+        key.insert(0, 'fake-test-key')
+        button = next(w for w in widgets if 'text' in w.keys() and w.cget('text') == '获取模型列表')
+        with patch('app.fetch_models', return_value=['example-a', 'example-b']):
+            button.invoke()
+            deadline = time.monotonic() + 2
+            while tuple(model.cget('values')) != ('example-a', 'example-b') and time.monotonic() < deadline:
+                self.root.update()
+            self.assertEqual(tuple(model.cget('values')), ('example-a', 'example-b'))
+        self.assertEqual(model.get(), current)
+        dialog.destroy()
+
     def test_floating_button_hover(self):
         self.app.suggestion.show()
         self.root.update()
