@@ -1,0 +1,22 @@
+# Local environments and generated releases
+.venv*/
+__pycache__/
+*.py[cod]
+build/
+dist/
+release/
+*.spec
+# Never commit personal configuration or credentials
+.env
+.env.*
+settings.json
+usage.json
+usage.json.*
+*.key
+*.pem
+*.log
+# Editor / OS files
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

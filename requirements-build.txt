@@ -1,0 +1,2 @@
+# Build-only dependency. Application source uses the Python standard library.
+pyinstaller==6.20.0
